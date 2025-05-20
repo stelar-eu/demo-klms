@@ -1,0 +1,33 @@
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stelar-etl"
+version = "0.1.0"
+dependencies = [
+    "pandas",
+    "pyarrow",
+    "fastparquet",
+    "fsspec",
+    "stelar_client"
+    ]
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",   # if you want coverage reports
+    "black",        # code formatting
+    "isort",        # import sorting
+    "flake8",       # linting
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
