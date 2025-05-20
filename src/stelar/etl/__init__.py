@@ -1,3 +1,5 @@
 
-from .base import Catalog, Module
+from .base import Catalog, Module, Package, Node
+from .goal import Goal
+
 

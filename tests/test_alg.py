@@ -1,9 +1,9 @@
-from stelar.etl.base import Catalog, strongly_connected_index
+from stelar.etl import Catalog
 
 
 def test_sci(simple_catalog):
 
-    strongly_connected_index(simple_catalog)
+    simple_catalog.strongly_connected_index()
 
     mlist = list(simple_catalog.modules())
 
