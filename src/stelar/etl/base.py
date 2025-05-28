@@ -3,16 +3,21 @@ Set up testing environment for the project.
 
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable    
-from collections import deque
+
 import re
+# from typing import TYPE_CHECKING, Callable    
+from collections import deque
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from stelar.client import Client
 
 
 class Catalog:
     def __init__(self):
         self.root = {}
         self.goal = {}
-        self.client = None
+        self.client: Client = None
 
     def add(self, child):
         """Add a child node to this catalog.
@@ -30,8 +35,8 @@ class Catalog:
         if child.name in self.root:
             raise ValueError(f"Child with name {child.name} already exists")
         if child.parent is not None:
-            raise ValueError(f"Adding a non-toplevel item is not supported")
-        if hasattr(child, "catalog"):
+            raise ValueError("Adding a non-toplevel item is not supported")
+        if child.catalog is not None:
             raise ValueError(f"Child {child.name} already has a catalog")
 
         # Add the child to this catalog's root
@@ -107,7 +112,7 @@ class Catalog:
         return obj
 
     def modules(self):
-        """Get all the modules in this catalog.
+        """Return the modules in this catalog.
 
         The method returns an iterable of all the modules in this catalog, including sub-modules.
         """
@@ -118,7 +123,18 @@ class Catalog:
                 yield from child.modules()
             else:
                 raise ValueError(f"Child {child.name} is not a module or a package")
-
+            
+    def all_modules(self):
+        """Return an iterator over all modules and submodules in this catalog.
+        """
+        for child in self.root.values():
+            if isinstance(child, Module):
+                yield child
+                yield from child.all_submodules()
+            elif isinstance(child, Package):
+                yield from child.all_modules()
+            else:
+                raise ValueError(f"Child {child.name} is not a module or a package")
 
     def strongly_connected_index(self) -> dict[str, int]:
         """Compute the strongly connected index for a set of modules.
@@ -138,12 +154,12 @@ class Catalog:
         # This implementation is based on the SCC algorithm from Kosaraju
         # and Tarjan, which is a linear time algorithm for finding strongly connected components
 
-        for m in self.modules():
+        for m in self.all_modules():
             m.scc_index = None
 
         # First, iterate over all modules and start a DFS from each
         visited = set()
-        stack = deque(('visit', m) for m in self.modules())
+        stack = deque(('visit', m) for m in self.all_modules())
 
         # L is a stack of modules to be postvisited
         L = deque()
@@ -180,8 +196,7 @@ class Catalog:
                     L.append((n, sccbase))
 
 
-
-
+# Now, iterate over all modules and set the SCI
 NODE_NAME_REGEX = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
@@ -209,9 +224,13 @@ class Node:
     Each node can have multiple children, which are the nodes that are directly below it in the tree.
     Each node can also have one parent, which is the node that is directly above it in the tree.
 
-    A node can be either a module or a package. A module is a collection of KLMS resources (datasets, files, buckets, setting, etc).
-    A package is a collection of modules and other packages.
+    A node can be either a module or a package. A module is a collection of KLMS resources
+    (datasets, files, buckets, setting, etc). A package is a collection of modules and other 
+    packages.
     """
+
+    catalog : Catalog = None  # The catalog this node belongs to
+
     def __init__(self, name, parent=None):
         """Initialize a node.
         Args:
@@ -236,10 +255,9 @@ class Node:
         if child.name in self.children:
             raise ValueError(f"Child with name {child.name} already exists")
         if child.parent is not None and child.parent is not self:
-            raise ValueError(f"Child's parent must be this node")
-        if hasattr(child, "catalog"):
+            raise ValueError("Child's parent must be this node")
+        if child.catalog is not None:
             raise ValueError(f"Child {child.name} already has a catalog")
-
 
         # Add the child to this node's children
         if child.parent is None:
@@ -255,7 +273,6 @@ class Node:
         """
         self.add(child)
         return self
-
 
     def ancestors(self):
         """Get the ancestors of this node.
@@ -332,6 +349,16 @@ class Package(Node):
             else:
                 raise ValueError(f"Child {child.name} is not a module or a package")
 
+    def all_modules(self):
+        for child in self.children.values():
+            if isinstance(child, Module):
+                yield child
+                yield from child.all_submodules()
+            elif isinstance(child, Package):
+                yield from child.all_modules()
+            else:
+                raise ValueError(f"Child {child.name} is not a module or a package")
+
 
 class Module(Node):
     """
@@ -347,18 +374,23 @@ class Module(Node):
     Modules are hierarchical: A module can contain other modules, and these modules can
     contain other modules, and so on. This allows for a tree-like structure of modules.
     
-    Also, modules can have dependencies on other modules called requirements, i.e., to create a module, 
-    its requirements must be already installed. A module whose requirements are installed is ENABLED, else it is disabled.
+    Also, modules can have dependencies on other modules called requirements, i.e., to create
+    a module, its requirements must be already installed. A module whose requirements are
+    installed is ENABLED, else it is disabled.
 
-    Sub-modules are modules that are contained in a module. Each top-level module is considered installed if all its sub-modules are installed.
-    Also, if a sub-module is installed, its parent module is also either installed, or in the process of being installed (see goals below).
+    Sub-modules are modules that are contained in a module. Each top-level module is
+    considered installed if all its sub-modules are installed.
+    Also, if a sub-module is installed, its parent module is also either installed, or in
+    the process of being installed (see goals below).
 
-    Each module on a KLMS has a __goal__ installation state, which may be (temporarily) different from its actual state.
-    The goal state is the state that the module should be in after all operations to install it are completed (installing requirements, creating the
+    Each module on a KLMS has a __goal__ installation state, which may be (temporarily)
+    different from its actual state. The goal state is the state that the module should
+    be in after all operations to install it are completed (installing requirements, creating the
     resources of the module, etc).
 
-    Goal states are achieved by running the __reconciliation__ process on a KLMS. The reconciliation process plans the operations to be performed on the KLMS
-    to achieve the goal state of all modules on the KLMS. The reconciliation process should be run a module's goal state changes.
+    Goal states are achieved by running the __reconciliation__ process on a KLMS. The reconciliation
+    process plans the operations to be performed on the KLMS to achieve the goal state of all
+    modules on the KLMS. The reconciliation process should be run a module's goal state changes.
 
     A module can be in one of the following states:
     - INSTALLED: The module is installed on the KLMS.
@@ -367,8 +399,9 @@ class Module(Node):
     - DISABLED: The module is disabled on the KLMS, i.e., its requirements are not installed.
     """
 
-    def __init__(self, name, parent=None):
+    def __init__(self, name, parent=None, *, spec={}):
         super().__init__(name, parent)
+        self.spec = spec
         self.required = set()
         self.enabled = set()
         self._installed = None
@@ -409,7 +442,6 @@ class Module(Node):
             self.required.add(req)
             req.enabled.add(self)
 
-
     @property
     def is_submodule(self):
         """Check if this module is a sub-module of another module.
@@ -436,7 +468,16 @@ class Module(Node):
             else:
                 raise ValueError(f"Child {child.name} is not a module")
 
-    def check_installed(self):
+    def all_submodules(self):
+        """Get all the submodules of this module.
+        
+        Submodules of submodules will be returned.
+        """
+        for child in self.children.values():
+            yield child
+            yield from child.all_submodules()
+
+    def check_installed(self) -> bool:
         """Check if this module is installed.
 
         The method returns True if this module is installed, False otherwise.
@@ -462,6 +503,49 @@ class Module(Node):
         if not isinstance(value, bool | None):
             raise ValueError(f"Installed state must be a boolean, got {value}")
         self._installed = value
+
+    def _label(self):
+        clsname = self.__class__.__name__
+        if clsname.endswith("Module"):
+            clsname = clsname[:-6]
+        return f"{clsname:<12} {self.fullname:<32}"
+
+    def do_install(self):
+        self.pre_install()
+        if not self.installed:
+            print("Install", self._label(), ": installing")
+            self.install()
+        else:
+            print("Install", self._label(), ": unchanged")
+        self.post_install()
+
+    def pre_install(self):
+        """Called before install.
+
+           Subclasses can add functionality here.
+        """
+    
+    def post_install(self):
+        """Called before install.
+
+           Subclasses can add functionality here.
+        """
+        pass
+
+    def do_uninstall(self):
+        self.pre_uninstall()
+        if self.installed:
+            print("Uninstall", self._label(), ": uninstalling")
+            self.uninstall()
+        else:
+            print("Uninstall", self._label(), ": unchanged")
+        self.post_uninstall()
+
+    def pre_uninstall(self):
+        pass
+
+    def post_uninstall(self):
+        pass
 
     def install(self):
         """Install this module.

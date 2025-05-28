@@ -39,7 +39,6 @@ class Goal:
             assert isinstance(req, Module)
             return [req]
 
-
     def set_goal(self, req, g, force=False):
         assert g in (True, False)
         newinstalls = []
@@ -68,8 +67,7 @@ class Goal:
         """
         self.set_goal(req, False)
 
-
-    def __and__(self, other):
+    def __or__(self, other):
         """Combine two goals.
 
         The method combines two goals by taking the union of their goals.
@@ -102,9 +100,17 @@ class Goal:
 
         # the set of modules in the final state that need to be installed
         I = set(self.catalog.get(m) for m, v in self._goal.items() if v)
+
         # the set of modules in the final state that need to be uninstalled
         U = set(self.catalog.get(m) for m, v in self._goal.items() if not v)
 
+        
+        # Augment goal to maintain module atomicity
+        I = add_all_modules(I)
+        U = add_all_modules(U)
+
+
+        # Augment goal to maintain the requirement invariant
         I = transitive_closure(I, lambda m: m.required)
         U = transitive_closure(U, lambda m: m.enabled)
 
@@ -132,9 +138,23 @@ class Goal:
         Ilist, Ulist = self.logical_plan()
 
         for m in Ilist:
-            m.install()
+            m.do_install()
         for m in Ulist:
-            m.uninstall()
+            m.do_uninstall()
+
+
+def add_all_modules(S: set[Module]) -> set[Module]:
+    """Return a superset of a set of modules, expanding all top module groups.
+
+    Two Module objects are peers if they have the same top module.
+    The returned set is a superset of S which is closed under the 'peer' relation.
+    """
+    tops = {m.top_module for m in S}
+    Sx = set(tops)
+    for top in tops:
+        peers = set(top.all_submodules())
+        Sx |= peers
+    return Sx
 
 
 def transitive_closure(S: set[Module], f: Callable[Module, set[Module]]) -> set[Module]:
