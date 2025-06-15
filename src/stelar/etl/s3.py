@@ -73,5 +73,5 @@ class FileModule(Module):
         cli = self.catalog.client
         bucket_name = self.spec['bucket_name']
         object_name = self.spec['object_name']
-        return f"s3//{bucket_name}/{object_name}"
+        return f"s3://{bucket_name}/{object_name}"
 

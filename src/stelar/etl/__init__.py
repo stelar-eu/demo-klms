@@ -1,8 +1,9 @@
 
-from .base import Catalog, Module, Package, Node
+from .base import Catalog, Module, Node, Package
+from .datacat import (DatasetModule, LicenseModule, OrganizationModule,
+                      ProcessModule, RelationshipModule, ResourceModule,
+                      ToolModule, VocabularyModule, WorkflowModule)
 from .goal import Goal
-
-from .datacat import DatasetModule, VocabularyModule, WorkflowModule, ToolModule, ProcessModule, ResourceModule
 from .s3 import BucketModule, FileModule
 from .users import UserModule
 
@@ -13,19 +14,21 @@ __all__ = [
     "Node",
     "Goal",
 
-    # modules
-    DatasetModule,
-    VocabularyModule,
-    WorkflowModule,
-    ProcessModule,
-    ToolModule,
-
-    ResourceModule,
+    # data catalog modules
+    "DatasetModule",
+    "VocabularyModule",
+    "WorkflowModule",
+    "ProcessModule",
+    "ToolModule",
+    "RelationshipModule",  # Assuming this is defined elsewhere
+    "LicenseModule",  
+    "ResourceModule",
+    "OrganizationModule",
 
     # modules for S3
-    BucketModule,
-    FileModule,
+    "BucketModule",
+    "FileModule",
 
     # modules for users
-    UserModule,
+    "UserModule",
 ]

@@ -6,19 +6,65 @@
 from stelar.client import Client
 
 from stelar.etl import (BucketModule, Catalog, DatasetModule, FileModule, Goal,
-                        ProcessModule, ResourceModule, ToolModule, UserModule,
-                        VocabularyModule, WorkflowModule)
+                        OrganizationModule, ProcessModule, ResourceModule,
+                        ToolModule, UserModule, VocabularyModule,
+                        WorkflowModule, RelationshipModule)
 
 c = Catalog()
 
 
+stelar = c.get_package("stelar")
 testing = c.get_package("stelar.testing")
+
+
+stelar_klms = OrganizationModule("stelar_klms", parent=stelar, spec = {
+    'name': "stelar-klms",
+    'title': "Stelar KLMS",
+    'description': "The Stelar Knowledge and Learning Management System",
+})
+
+
+red_org = OrganizationModule("red_org", testing, spec={
+    'name': "red-org",
+    'title': "Red Organization",
+    'description': "Red is an organization for testing purposes",
+})
+
+blue_org = OrganizationModule("blue_org", testing, spec={
+    'name': "blue-org",
+    'title': "Blue Organization",
+    'description': "Blue is an organization for testing purposes",
+})
+
 
 testing += VocabularyModule("daltons", tags=["joe", "jack", "william", "averell"])
 klms_bucket = BucketModule("klms_bucket", spec = {
     'bucket_name': 'klms-bucket',
 })
 testing += klms_bucket
+
+dataset1 = DatasetModule("dataset1", parent=testing, spec = {
+    'title': "Dataset 1",
+    'tags': ['test', 'dataset'],
+    'notes': "A test dataset",
+    'spatial': {
+        "coordinates": [[[12.362, 45.39], [12.485, 45.39], [12.485, 45.576], [12.362, 45.576], [12.362, 45.39]]], 
+        "type": "Polygon"
+    },
+})
+
+dataset2 = DatasetModule("dataset2", parent=testing, spec = {
+    'title': "Dataset 2",
+    'tags': ['test', 'dataset'],
+    'notes': "A 2nd test dataset",
+})
+
+dataset3 = DatasetModule("dataset3", parent=testing, spec = {
+    'title': "Dataset 3",
+    'tags': ['test', 'dataset'],
+    'notes': "A 3rd test dataset",
+})
+
 
 rj_txt = FileModule("romeo_juliet", spec = {
     'bucket_name': 'klms-bucket',
@@ -57,6 +103,7 @@ simple_tool = ToolModule(name='simple_tool', parent=testing, spec = {
     }
 })
 
+
 wf1 = WorkflowModule("simple_wf", parent=testing, spec = {
     "title": "A simple workflow used in testing"
 })
@@ -66,7 +113,12 @@ proc1 = ProcessModule("simple_proc", parent=testing, spec = {
     # TODO: Ideally, we would like to do the following!
     # "workflow": wf1
 })
-
+proc1.add_resource("context_resource", spec={
+    "name": "Context Resource",
+    "url": "s3://klms-bucket/wordcount.csv",
+    "relation": "testing",
+    "package_type": "process"
+})
 
 dummy2 = UserModule("dummy_user2", parent=testing, spec = {
     "username": "dummy_user2",
@@ -145,6 +197,14 @@ wine_ds.add_resource("wine_res", file=wine_csv, spec = {
 })
 
 
+iris_wine_link = RelationshipModule("iris_wine_link", parent=testing, spec = {
+    "subject": iris_ds,
+    "object": wine_ds,
+    "relationship": "links_to",
+    "comment": "Linking the Iris and Wine datasets for testing purposes"
+})
+
+
 """
 actions: 
     minio_editor: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
@@ -159,8 +219,8 @@ roles:
 """
 
 
-
-c.client = Client('local')
-goal = Goal(c)
-goal.install(testing)
-goal.reconcile()
+if __name__ == "__main__":
+    c.client = Client('local')
+    goal = Goal(c)
+    goal.install(testing)
+    goal.reconcile()

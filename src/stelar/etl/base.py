@@ -197,7 +197,7 @@ class Catalog:
 
 
 # Now, iterate over all modules and set the SCI
-NODE_NAME_REGEX = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+NODE_NAME_REGEX = re.compile(r"^[a-zA-Z_]([a-zA-Z0-9_-]*[a-zA-Z0-9_])?$")
 
 
 def check_node_name(name: str):
@@ -231,7 +231,7 @@ class Node:
 
     catalog : Catalog = None  # The catalog this node belongs to
 
-    def __init__(self, name, parent=None):
+    def __init__(self, name: str, parent: Node | None = None):
         """Initialize a node.
         Args:
             name (str): The name of the node.
@@ -333,7 +333,7 @@ class Package(Node):
 
     In fact, modules are a special kind of a package, which can have sub-modules but not sub-packages.
     """
-    def __init__(self, name, parent=None):
+    def __init__(self, name: str, parent: Package | None = None):
         super().__init__(name, parent)
 
     def modules(self):
@@ -399,7 +399,7 @@ class Module(Node):
     - DISABLED: The module is disabled on the KLMS, i.e., its requirements are not installed.
     """
 
-    def __init__(self, name, parent=None, *, spec={}):
+    def __init__(self, name:str, parent: Node | None =None, *, spec={}):
         super().__init__(name, parent)
         self.spec = spec
         self.required = set()
